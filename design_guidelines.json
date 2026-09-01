@@ -1,0 +1,139 @@
+{
+  "project_title": "WhatsApp Atendimento SaaS - Omnichannel Customer Support Platform",
+  "app_type": "dashboard",
+  "theme": "dark",
+  "typography": {
+    "heading_font": "Outfit, sans-serif",
+    "body_font": "Plus Jakarta Sans, sans-serif",
+    "code_mono_font": "JetBrains Mono, monospace",
+    "hierarchy": {
+      "h1": "text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-50",
+      "h2": "text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-slate-100",
+      "h3": "text-lg sm:text-xl font-semibold text-slate-200",
+      "h4": "text-base font-medium text-slate-300",
+      "body": "text-sm text-slate-300 leading-relaxed",
+      "caption": "text-xs font-medium text-slate-400 uppercase tracking-wider"
+    }
+  },
+  "colors": {
+    "mode": "dark",
+    "background": "#0B0F17",
+    "surface": "#111827",
+    "surface_elevated": "#1F2937",
+    "border": "#374151",
+    "border_subtle": "#1F2937",
+    "primary": {
+      "DEFAULT": "#10B981",
+      "hover": "#059669",
+      "active": "#047857",
+      "foreground": "#FFFFFF",
+      "glow": "rgba(16, 185, 129, 0.15)"
+    },
+    "whatsapp_green": "#25D366",
+    "accent": "#6366F1",
+    "warning": "#F59E0B",
+    "destructive": "#EF4444",
+    "muted_text": "#9CA3AF",
+    "chat_bubble_sent": "#064E3B",
+    "chat_bubble_received": "#1F2937",
+    "status_badges": {
+      "online": "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+      "busy": "bg-amber-500/20 text-amber-400 border-amber-500/30",
+      "offline": "bg-slate-500/20 text-slate-400 border-slate-500/30",
+      "bot": "bg-indigo-500/20 text-indigo-400 border-indigo-500/30"
+    }
+  },
+  "layout_strategy": {
+    "structure": "Three-Pane High Density Workspace",
+    "sidebar": "Fixed narrow icon + text bar on left (64px collapsed, 220px expanded) for core module navigation",
+    "inbox_list": "320px fixed column for active chat list, search, filters (Unassigned, Mine, All, Tags)",
+    "main_chat_thread": "Flex-1 dynamic chat area with header, scrollable audio/text transcript, quick reply bar, and multimedia rich sender area",
+    "crm_panel": "300px collapsible right sidebar for contact CRM details, call recordings, agent assignment, notes, custom fields, and tags"
+  },
+  "key_components": [
+    {
+      "name": "Conversation Inbox",
+      "description": "WhatsApp chat stream with realtime message delivery statuses, voice message player wave visualizer, file attachments, and emoji picker."
+    },
+    {
+      "name": "Chatbot & Automation Builder",
+      "description": "Rule-based and AI trigger config for keywords, welcome greetings, out-of-office hours, and automated menu routing."
+    },
+    {
+      "name": "Quick Replies & Templates",
+      "description": "Categorized message template manager with variable replacement badges (e.g. {{nome}}, {{protocolo}})."
+    },
+    {
+      "name": "Call Logs & Audio Recordings",
+      "description": "Audio player interface with speed controls (1x, 1.5x, 2x), transcript view, call duration, and agent notes."
+    },
+    {
+      "name": "Agents & Team Management",
+      "description": "Attendant list, active workload status, queue assignment rules, and role management (Admin vs Attendant)."
+    },
+    {
+      "name": "Contacts CRM",
+      "description": "Filterable contact list with tags (VIP, Lead, Inadimplente, Suporte), contact history, and WhatsApp sync status."
+    },
+    {
+      "name": "Analytics Dashboard",
+      "description": "Key metrics (Avg Response Time, CSAT score, Messages/day, Attendant Leaderboard) using Recharts with dark palette."
+    },
+    {
+      "name": "WhatsApp Connection Center",
+      "description": "QR code scanner canvas simulation, session status (Connected / Reconnecting), device phone details, and webhook health."
+    }
+  ],
+  "image_urls": {
+    "agent_avatars": [
+      {
+        "url": "https://images.pexels.com/photos/7681362/pexels-photo-7681362.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Headset male support agent Carlos"
+      },
+      {
+        "url": "https://images.pexels.com/photos/7709255/pexels-photo-7709255.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Headset female support agent Beatriz"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1580489944761-15a19d654956?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHxfHxwb3J0cmFpdCUyMGF2YXRhciUyMHdvbWFuJTIwcHJvZmVzc2lvbmFsJTIwaGVhZHNob3R8ZW58MHx8fHwxNzg4Mjg1ODM3fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Attendant Mariana"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHwyfHxwb3J0cmFpdCUyMGF2YXRhciUyMHdvbWFuJTIwcHJvZmVzc2lvbmFsJTIwaGVhZHNob3R8ZW58MHx8fHwxNzg4Mjg1ODM3fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Customer contact Ana Silva"
+      }
+    ]
+  },
+  "motion_and_interactions": {
+    "hover_transitions": "transition-all duration-150 ease-in-out",
+    "chat_bubble_entrance": "animate-in fade-in slide-in-from-bottom-2 duration-200",
+    "toast_notifications": "Use Sonner for incoming message toasts with quick answer triggers"
+  },
+  "testing_requirements": {
+    "data_testid_convention": "All interactive elements (buttons, nav items, message inputs, filter tabs, modal triggers) MUST contain descriptive kebab-case data-testid attributes.",
+    "key_test_ids": [
+      "nav-inbox",
+      "nav-chatbot",
+      "nav-templates",
+      "nav-calls",
+      "nav-agents",
+      "nav-contacts",
+      "nav-analytics",
+      "nav-connection",
+      "role-switcher",
+      "chat-search-input",
+      "send-message-button",
+      "audio-play-button",
+      "qr-refresh-button",
+      "add-agent-button",
+      "quick-reply-trigger"
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Build a complete, production-ready WhatsApp Omnichannel Customer Atendimento Dashboard in Portuguese with English tech fallback.",
+    "Implement Role-Based view switching (Admin mode showing full analytics/bot settings vs Attendant mode focused on Inbox).",
+    "Ensure three-pane chat view works seamlessly on desktop and degrades gracefully to collapsible panels on mobile screens.",
+    "Use Lucide React icons for all operational metrics, chat status ticks (double green checkmarks), voice wave indicators, and channel badges.",
+    "Ensure data-testid is attached to all buttons, inputs, tabs, and key list items as per testing requirements."
+  ]
+}
