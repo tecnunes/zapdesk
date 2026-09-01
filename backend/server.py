@@ -395,6 +395,35 @@ async def list_conversations(user: dict = Depends(get_current_user), filter: str
         out.append(c)
     return out
 
+class StartConvIn(BaseModel):
+    contact_id: Optional[str] = None
+    name: Optional[str] = None
+    phone: Optional[str] = None
+
+@api.post("/conversations")
+async def start_conversation(body: StartConvIn, user: dict = Depends(get_current_user)):
+    name, phone, avatar = body.name, body.phone, ""
+    if body.contact_id:
+        c = await db.contacts.find_one({"_id": ObjectId(body.contact_id)})
+        if not c:
+            raise HTTPException(status_code=404, detail="Contato não encontrado")
+        name, phone, avatar = c["name"], c["phone"], c.get("avatar", "")
+    if not phone or not phone.strip():
+        raise HTTPException(status_code=400, detail="Telefone é obrigatório")
+    phone = phone.strip()
+    existing = await db.conversations.find_one({"contact_phone": phone})
+    if existing:
+        return clean(existing)
+    if not body.contact_id and not await db.contacts.find_one({"phone": phone}):
+        await db.contacts.insert_one({"name": name or phone, "phone": phone, "email": "",
+                                      "tags": [], "notes": "", "avatar": "", "created_at": iso()})
+    doc = {"contact_name": name or phone, "contact_phone": phone, "channel": "whatsapp",
+           "agent_id": str(user["_id"]), "agent_name": user["name"], "status": "open",
+           "bot_active": False, "unread": 0, "avatar": avatar,
+           "last_message": "", "last_message_at": iso(), "created_at": iso()}
+    res = await db.conversations.insert_one(doc)
+    return clean({**doc, "_id": res.inserted_id})
+
 @api.get("/conversations/{conv_id}")
 async def get_conversation(conv_id: str, user: dict = Depends(get_current_user)):
     conv = await db.conversations.find_one({"_id": ObjectId(conv_id)})

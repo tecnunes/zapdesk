@@ -12,7 +12,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Search, Send, Sparkles, Bot, BotOff, CheckCheck, Zap, User,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Search, Send, Sparkles, Bot, BotOff, CheckCheck, Zap, User, UserPlus,
   MessageSquarePlus, Loader2, Phone, Tag, X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -41,6 +44,10 @@ export default function Inbox() {
   const [templates, setTemplates] = useState([]);
   const [agents, setAgents] = useState([]);
   const [aiLoading, setAiLoading] = useState(false);
+  const [contacts, setContacts] = useState([]);
+  const [newOpen, setNewOpen] = useState(false);
+  const [newSearch, setNewSearch] = useState("");
+  const [manual, setManual] = useState({ name: "", phone: "" });
   const scrollRef = useRef(null);
 
   const loadConvs = useCallback(async () => {
@@ -60,7 +67,19 @@ export default function Inbox() {
   useEffect(() => {
     api.get("/templates").then((r) => setTemplates(r.data));
     api.get("/agents").then((r) => setAgents(r.data.filter((a) => a.role === "attendant" || a.role === "admin")));
+    api.get("/contacts").then((r) => setContacts(r.data));
   }, []);
+
+  const startConversation = async (c) => {
+    try {
+      const payload = c.id ? { contact_id: c.id } : { name: c.name, phone: c.phone };
+      const { data } = await api.post("/conversations", payload);
+      setNewOpen(false); setManual({ name: "", phone: "" }); setNewSearch("");
+      await loadConvs();
+      setActiveId(data.id);
+      toast.success("Conversa iniciada");
+    } catch (e) { toast.error(e.response?.data?.detail || "Erro ao iniciar conversa"); }
+  };
 
   // polling
   useEffect(() => {
@@ -131,7 +150,45 @@ export default function Inbox() {
       {/* Conversation list */}
       <div className="w-full sm:w-[320px] shrink-0 border-r border-slate-800 flex flex-col bg-[#0d1220]">
         <div className="p-4 border-b border-slate-800">
-          <h1 className="font-display text-xl font-bold text-white mb-3">Conversas</h1>
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="font-display text-xl font-bold text-white">Conversas</h1>
+            <Dialog open={newOpen} onOpenChange={setNewOpen}>
+              <DialogTrigger asChild>
+                <Button data-testid="new-conversation-button" size="sm" className="bg-emerald-500 hover:bg-emerald-600 h-8">
+                  <UserPlus className="h-4 w-4 mr-1" /> Nova
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-[#111827] border-slate-700 text-slate-100">
+                <DialogHeader><DialogTitle>Iniciar nova conversa</DialogTitle></DialogHeader>
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                    <Input data-testid="new-conv-search" value={newSearch} onChange={(e) => setNewSearch(e.target.value)}
+                      placeholder="Buscar contato…" className="pl-9 bg-slate-900 border-slate-700" />
+                  </div>
+                  <div className="max-h-56 overflow-y-auto space-y-1">
+                    {contacts.filter((c) => c.name.toLowerCase().includes(newSearch.toLowerCase()) || c.phone.includes(newSearch)).map((c) => (
+                      <button key={c.id} data-testid={`start-conv-${c.id}`} onClick={() => startConversation(c)}
+                        className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800 text-left">
+                        {c.avatar ? <img src={c.avatar} alt="" className="h-9 w-9 rounded-full object-cover" />
+                          : <div className="h-9 w-9 rounded-full grid place-items-center bg-indigo-500/20 text-indigo-300 font-semibold text-sm">{c.name?.[0]}</div>}
+                        <div className="min-w-0"><p className="text-sm font-medium text-slate-100 truncate">{c.name}</p><p className="text-xs text-slate-500 font-mono">{c.phone}</p></div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="border-t border-slate-800 pt-3">
+                    <p className="text-xs text-slate-500 mb-2">Ou inicie com um novo número</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input value={manual.name} onChange={(e) => setManual({ ...manual, name: e.target.value })} placeholder="Nome" className="bg-slate-900 border-slate-700" />
+                      <Input data-testid="manual-phone" value={manual.phone} onChange={(e) => setManual({ ...manual, phone: e.target.value })} placeholder="+55 11 90000-0000" className="bg-slate-900 border-slate-700" />
+                    </div>
+                    <Button data-testid="start-manual-conv" onClick={() => startConversation(manual)} disabled={!manual.phone.trim()} className="w-full mt-2 bg-emerald-500 hover:bg-emerald-600">Iniciar conversa</Button>
+                    <p className="text-[11px] text-slate-500 mt-2">No WhatsApp oficial, iniciar com o cliente exige janela de 24h ou modelo aprovado.</p>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
             <Input data-testid="chat-search-input" value={search} onChange={(e) => setSearch(e.target.value)}
