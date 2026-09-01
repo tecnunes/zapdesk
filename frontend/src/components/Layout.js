@@ -1,5 +1,11 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import api from "@/lib/api";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
 import {
   MessagesSquare, Users, LayoutDashboard, Bot, FileText,
   Phone, Contact, PlugZap, LogOut, MessageCircleHeart,
@@ -17,11 +23,19 @@ const nav = [
 ];
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, setUser } = useAuth();
   const navigate = useNavigate();
   const isAdmin = user?.role === "admin";
+  const [statuses, setStatuses] = useState([]);
+
+  useEffect(() => { api.get("/statuses").then((r) => setStatuses(r.data)).catch(() => {}); }, []);
 
   const handleLogout = async () => { await logout(); navigate("/login"); };
+  const statusColor = (label) => statuses.find((s) => s.label === label)?.color || "#6B7280";
+  const changeStatus = async (label) => {
+    try { await api.put("/me/status", { status: label }); setUser({ ...user, status: label }); toast.success("Status atualizado"); }
+    catch (e) { toast.error("Erro ao atualizar status"); }
+  };
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#0B0F17] text-slate-200">
@@ -56,8 +70,8 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="border-t border-slate-800 p-3">
-          <div className="flex items-center gap-3 rounded-lg px-2 py-2">
+        <div className="border-t border-slate-800 p-3 space-y-2">
+          <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
             <div className="grid place-items-center h-9 w-9 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold text-sm">
               {user?.name?.[0]?.toUpperCase()}
             </div>
@@ -69,6 +83,21 @@ export default function Layout() {
               <LogOut className="h-[18px] w-[18px]" />
             </button>
           </div>
+          <Select value={user?.status || ""} onValueChange={changeStatus}>
+            <SelectTrigger data-testid="my-status-select" className="bg-slate-900 border-slate-700 text-slate-200 h-9 text-xs">
+              <span className="flex items-center gap-2 truncate">
+                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: statusColor(user?.status) }} />
+                <SelectValue placeholder="Definir status" />
+              </span>
+            </SelectTrigger>
+            <SelectContent className="bg-[#111827] border-slate-700 text-slate-200">
+              {statuses.map((s) => (
+                <SelectItem key={s.id} value={s.label}>
+                  <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.label}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </aside>
 

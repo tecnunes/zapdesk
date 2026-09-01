@@ -216,6 +216,13 @@ class AssignIn(BaseModel):
 class StatusIn(BaseModel):
     status: str
 
+class StatusDefIn(BaseModel):
+    label: str
+    color: str = "#10B981"
+
+class MyStatusIn(BaseModel):
+    status: str
+
 # ================= AUTH =================
 @api.post("/auth/register")
 async def register(body: RegisterIn, response: Response):
@@ -354,6 +361,33 @@ async def delete_agent(agent_id: str, admin: dict = Depends(require_admin)):
     await db.users.delete_one({"_id": ObjectId(agent_id)})
     await db.conversations.update_many({"agent_id": agent_id}, {"$set": {"agent_id": None}})
     return {"ok": True}
+
+# ================= STATUSES (atendimento) =================
+@api.get("/statuses")
+async def list_statuses(user: dict = Depends(get_current_user)):
+    rows = await db.statuses.find().sort("created_at", 1).to_list(100)
+    return [clean(r) for r in rows]
+
+@api.post("/statuses")
+async def create_status(body: StatusDefIn, admin: dict = Depends(require_admin)):
+    doc = body.model_dump(); doc["created_at"] = iso()
+    res = await db.statuses.insert_one(doc)
+    return clean({**doc, "_id": res.inserted_id})
+
+@api.put("/statuses/{sid}")
+async def update_status(sid: str, body: StatusDefIn, admin: dict = Depends(require_admin)):
+    await db.statuses.update_one({"_id": ObjectId(sid)}, {"$set": body.model_dump()})
+    return clean(await db.statuses.find_one({"_id": ObjectId(sid)}))
+
+@api.delete("/statuses/{sid}")
+async def delete_status(sid: str, admin: dict = Depends(require_admin)):
+    await db.statuses.delete_one({"_id": ObjectId(sid)})
+    return {"ok": True}
+
+@api.put("/me/status")
+async def set_my_status(body: MyStatusIn, user: dict = Depends(get_current_user)):
+    await db.users.update_one({"_id": user["_id"]}, {"$set": {"status": body.status}})
+    return {"status": body.status}
 
 # ================= CONTACTS =================
 @api.get("/contacts")
@@ -618,6 +652,37 @@ async def qr_incoming(request: Request):
     await process_incoming(cid, text)
     return {"ok": True}
 
+@app.post("/api/whatsapp/qr/sync")
+async def qr_sync(request: Request):
+    if request.headers.get("x-bridge-secret") != QR_SECRET:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    data = await request.json()
+    created = 0
+    for ch in data.get("chats", []):
+        phone = (ch.get("phone") or "").strip()
+        if not phone:
+            continue
+        name = ch.get("name") or phone
+        if await db.conversations.find_one({"contact_phone": phone}):
+            continue
+        res = await db.conversations.insert_one({
+            "contact_name": name, "contact_phone": phone, "channel": "whatsapp",
+            "agent_id": None, "agent_name": None, "status": "open", "bot_active": False,
+            "unread": 0, "avatar": "", "last_message": (ch.get("last_message") or "")[:80],
+            "last_message_at": iso(), "created_at": iso(), "imported": True})
+        cid = str(res.inserted_id)
+        for m in ch.get("messages", [])[-15:]:
+            await db.messages.insert_one({
+                "conversation_id": cid, "direction": "out" if m.get("fromMe") else "in",
+                "body": m.get("text", ""), "type": "text",
+                "sender": "Você" if m.get("fromMe") else name, "status": "read",
+                "created_at": m.get("ts") or iso()})
+        if not await db.contacts.find_one({"phone": phone}):
+            await db.contacts.insert_one({"name": name, "phone": phone, "email": "",
+                                          "tags": ["WhatsApp"], "notes": "", "avatar": "", "created_at": iso()})
+        created += 1
+    return {"ok": True, "created": created}
+
 # ================= TEMPLATES =================
 @api.get("/templates")
 async def list_templates(user: dict = Depends(get_current_user)):
@@ -825,6 +890,14 @@ async def seed():
             {"name": "Saudação inicial", "keywords": ["oi", "olá", "ola", "bom dia", "boa tarde"], "response": "Olá! 👋 Bem-vindo à ZapDesk. Digite: 1 para Suporte, 2 para Financeiro, 3 para Falar com atendente.", "enabled": True, "created_at": iso()},
             {"name": "Financeiro", "keywords": ["2", "boleto", "pagamento", "financeiro"], "response": "💳 Setor Financeiro: para 2ª via de boleto acesse exemplo.com/boleto. Deseja falar com um atendente? Digite 3.", "enabled": True, "created_at": iso()},
             {"name": "Suporte", "keywords": ["1", "suporte", "problema", "ajuda"], "response": "🛠️ Suporte técnico: descreva o problema que você está enfrentando que um atendente irá te ajudar.", "enabled": True, "created_at": iso()},
+        ])
+
+    if await db.statuses.count_documents({}) == 0:
+        await db.statuses.insert_many([
+            {"label": "Disponível", "color": "#10B981", "created_at": iso()},
+            {"label": "Em atendimento", "color": "#F59E0B", "created_at": iso()},
+            {"label": "Em almoço", "color": "#6366F1", "created_at": iso()},
+            {"label": "Ausente", "color": "#6B7280", "created_at": iso()},
         ])
 
     if await db.contacts.count_documents({}) == 0:

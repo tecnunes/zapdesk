@@ -29,9 +29,44 @@ async function startSock() {
     auth: state,
     logger: pino({ level: "silent" }),
     browser: ["ZapDesk", "Chrome", "1.0.0"],
+    syncFullHistory: true,
+    markOnlineOnConnect: false,
   });
 
   sock.ev.on("creds.update", saveCreds);
+
+  sock.ev.on("messaging-history.set", async ({ chats, messages }) => {
+    try {
+      const map = {};
+      for (const c of chats || []) {
+        const jid = c.id || "";
+        if (!jid.endsWith("@s.whatsapp.net")) continue;
+        const phone = jid.split("@")[0];
+        map[phone] = { phone, name: c.name || c.notify || phone, messages: [] };
+      }
+      for (const m of messages || []) {
+        const jid = m.key?.remoteJid || "";
+        if (!jid.endsWith("@s.whatsapp.net")) continue;
+        const phone = jid.split("@")[0];
+        const text = m.message?.conversation || m.message?.extendedTextMessage?.text || "";
+        if (!text) continue;
+        if (!map[phone]) map[phone] = { phone, name: m.pushName || phone, messages: [] };
+        const ts = new Date((Number(m.messageTimestamp) || 0) * 1000).toISOString();
+        map[phone].messages.push({ fromMe: !!m.key.fromMe, text, ts });
+      }
+      const arr = Object.values(map);
+      for (const c of arr) {
+        c.messages.sort((a, b) => (a.ts < b.ts ? -1 : 1));
+        c.last_message = c.messages.length ? c.messages[c.messages.length - 1].text : "";
+      }
+      for (let i = 0; i < arr.length; i += 40) {
+        await axios
+          .post(`${BACKEND_URL}/api/whatsapp/qr/sync`, { chats: arr.slice(i, i + 40) }, { headers: { "x-bridge-secret": SECRET } })
+          .catch((e) => console.log("sync err", e.message));
+      }
+      console.log("history sync enviado, chats=", arr.length);
+    } catch (e) { console.log("history err", e.message); }
+  });
 
   sock.ev.on("connection.update", async (u) => {
     const { connection, lastDisconnect, qr } = u;
