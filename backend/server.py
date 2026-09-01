@@ -40,6 +40,8 @@ EMAIL_BASE_URL = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip().rstrip(
 EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY", "")
 EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME") or "ZapDesk"
 GRAPH_API_VERSION = "v23.0"
+QR_URL = os.environ.get("WHATSAPP_QR_URL", "http://localhost:3001")
+QR_SECRET = os.environ.get("QR_BRIDGE_SECRET", "zapdesk-qr-bridge-2026")
 
 # ---------------- Helpers: Mongo model ----------------
 PyObjectId = Annotated[str, BeforeValidator(str)]
@@ -201,6 +203,7 @@ class BotSettingsIn(BaseModel):
     ai_system_prompt: str = ""
 
 class WhatsAppSettingsIn(BaseModel):
+    provider: str = "meta"
     phone_number_id: str = ""
     access_token: str = ""
     verify_token: str = ""
@@ -469,15 +472,32 @@ async def _insert_message(conv_id: str, direction: str, body: str, sender: str, 
 
 async def send_whatsapp_text(to: str, body: str):
     s = await db.settings.find_one({"_id": "whatsapp"}) or {}
-    token = s.get("access_token"); pnid = s.get("phone_number_id")
-    if not token or not pnid:
+    provider = s.get("provider", "meta")
+    if provider == "qr":
+        try:
+            async with httpx.AsyncClient(timeout=20) as c:
+                r = await c.post(f"{QR_URL}/send", headers={"x-bridge-secret": QR_SECRET}, json={"to": to, "text": body})
+            return r.json()
+        except Exception as e:
+            logger.error(f"QR send failed: {e}")
+            return {"error": str(e)}
+    token = s.get("access_token")
+    if not token:
         return {"simulated": True}
-    url = f"https://graph.facebook.com/{GRAPH_API_VERSION}/{pnid}/messages"
     payload = {"messaging_product": "whatsapp", "recipient_type": "individual", "to": to,
                "type": "text", "text": {"preview_url": False, "body": body}}
+    if provider == "360dialog":
+        url = "https://waba-v2.360dialog.io/messages"
+        headers = {"D360-API-KEY": token, "Content-Type": "application/json"}
+    else:
+        pnid = s.get("phone_number_id")
+        if not pnid:
+            return {"simulated": True}
+        url = f"https://graph.facebook.com/{GRAPH_API_VERSION}/{pnid}/messages"
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     try:
         async with httpx.AsyncClient(timeout=20) as c:
-            r = await c.post(url, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, json=payload)
+            r = await c.post(url, headers=headers, json=payload)
         return r.json()
     except Exception as e:
         logger.error(f"WhatsApp send failed: {e}")
@@ -577,6 +597,27 @@ async def receive_webhook(request: Request):
                 await process_incoming(cid, text)
     return {"ok": True}
 
+@app.post("/api/whatsapp/qr/incoming")
+async def qr_incoming(request: Request):
+    if request.headers.get("x-bridge-secret") != QR_SECRET:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    data = await request.json()
+    phone = data.get("from", "")
+    text = data.get("text", "")
+    name = data.get("name") or phone
+    conv = await db.conversations.find_one({"contact_phone": phone}) or await db.conversations.find_one({"contact_phone": "+" + phone})
+    if not conv:
+        res = await db.conversations.insert_one({
+            "contact_name": name, "contact_phone": phone, "channel": "whatsapp",
+            "agent_id": None, "agent_name": None, "status": "open", "bot_active": True,
+            "unread": 0, "avatar": "", "last_message": text, "last_message_at": iso(), "created_at": iso()})
+        cid = str(res.inserted_id)
+    else:
+        cid = str(conv["_id"])
+    await _insert_message(cid, "in", text, name)
+    await process_incoming(cid, text)
+    return {"ok": True}
+
 # ================= TEMPLATES =================
 @api.get("/templates")
 async def list_templates(user: dict = Depends(get_current_user)):
@@ -649,8 +690,27 @@ async def set_whatsapp_settings(body: WhatsAppSettingsIn, admin: dict = Depends(
         data["access_token"] = existing.get("access_token", "")
     data["connected"] = bool(data.get("access_token") and data.get("phone_number_id"))
     await db.settings.update_one({"_id": "whatsapp"}, {"$set": data}, upsert=True)
-    return {"connected": data["connected"], "phone_number_id": data.get("phone_number_id"),
+    return {"connected": data["connected"], "provider": data.get("provider", "meta"),
+            "phone_number_id": data.get("phone_number_id"),
             "business_phone": data.get("business_phone"), "display_name": data.get("display_name")}
+
+@api.get("/whatsapp/qr/status")
+async def qr_status(admin: dict = Depends(require_admin)):
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(f"{QR_URL}/status", headers={"x-bridge-secret": QR_SECRET})
+        return r.json()
+    except Exception as e:
+        return {"status": "unavailable", "qr": None, "error": str(e)}
+
+@api.post("/whatsapp/qr/logout")
+async def qr_logout(admin: dict = Depends(require_admin)):
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(f"{QR_URL}/logout", headers={"x-bridge-secret": QR_SECRET})
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
 
 # ================= CALLS =================
 @api.get("/calls")
